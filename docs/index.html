@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>ENSO Outlook</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#f5f7fa;color:#1c2733}
+main{max-width:980px;margin:auto;padding:16px}
+h1{font-size:1.4rem;margin:.2em 0}.sub{color:#5b6b7a;font-size:.9rem}
+.card{background:#fff;border-radius:10px;padding:14px;margin:14px 0;box-shadow:0 1px 3px #0001}
+.badge{display:inline-block;padding:4px 12px;border-radius:99px;color:#fff;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{padding:6px;text-align:right;border-bottom:1px solid #eee}
+th:first-child,td:first-child{text-align:left}.note{font-size:.8rem;color:#5b6b7a}
+</style></head><body><main>
+<h1>ENSO Outlook: Niño 3.4 forecast</h1>
+<div class="sub" id="meta">Loading…</div>
+<div class="card" id="msg" style="display:none">Waiting for the first data update. In GitHub: Actions → "Update ENSO forecast" → Run workflow, then refresh this page.</div>
+<div id="app" style="display:none">
+<div class="card">Current state: <span class="badge" id="state"></span> <span id="cur"></span></div>
+<div class="card"><div id="c1"></div></div>
+<div class="card"><div id="c3"></div></div>
+<div class="card"><div id="c2"></div></div>
+<div class="card"><b>India monsoon impact</b><table id="ind"></table>
+<p class="note">This is an ENSO-based tilt, not a rainfall forecast. The link is moderate, not certain. The Indian Ocean Dipole (IOD; a positive phase can offset El Niño's drying) and local factors also matter, and are not modelled here. For official numbers use IMD.</p></div>
+<div class="card"><b>How good is this model? (back-tested)</b><table id="skill"></table>
+<p class="note">Improvement = lower error than "assume no change" (persistence). Skill falls with lead time and around the spring barrier.</p></div>
+</div>
+<p class="note">Experimental statistical model on NOAA CPC data. Not an official forecast. See NOAA CPC / IRI for official outlooks.</p>
+<script>
+fetch("forecast.json?"+Date.now()).then(r=>r.json()).then(d=>{
+ if(d.placeholder){document.getElementById("msg").style.display="block";document.getElementById("meta").textContent="";return}
+ document.getElementById("app").style.display="block";
+ document.getElementById("meta").textContent="Updated "+d.updated+" · latest observed month "+d.last_data_month;
+ const s=document.getElementById("state");s.textContent=d.state;
+ s.style.background=d.current_nino34>=.5?"#d64545":d.current_nino34<=-.5?"#3b6fd6":"#7b8794";
+ document.getElementById("cur").textContent=" Niño 3.4 anomaly "+d.current_nino34+" °C";
+ const h=d.history,f=d.forecast,fm=f.map(x=>x.month),lay=(t,y)=>({title:t,margin:{t:40,l:45,r:10,b:40},yaxis:{title:y},legend:{orientation:"h",y:-.2}});
+ const hm=h.month.slice(-120),hn=h.nino34.slice(-120);
+ Plotly.newPlot("c1",[
+  {x:hm,y:hn,name:"Observed",line:{color:"#1c2733"}},
+  {x:fm,y:f.map(x=>x.hi80),line:{width:0},showlegend:false,hoverinfo:"skip"},
+  {x:fm,y:f.map(x=>x.lo80),fill:"tonexty",fillcolor:"#e8833a33",line:{width:0},name:"80% range"},
+  {x:[hm.at(-1)].concat(fm),y:[hn.at(-1)].concat(f.map(x=>x.nino34)),name:"Forecast",line:{color:"#e8833a",dash:"dash"}}],
+  Object.assign(lay("Niño 3.4 anomaly (°C)","°C"),{shapes:[.5,-.5].map(v=>({type:"line",xref:"paper",x0:0,x1:1,y0:v,y1:v,line:{color:"#aaa",dash:"dot"}}))}),{responsive:true});
+ Plotly.newPlot("c3",[["p_el","El Niño","#d64545"],["p_neutral","Neutral","#b0b8c1"],["p_la","La Niña","#3b6fd6"]]
+  .map(a=>({x:fm,y:f.map(x=>x[a[0]]*100),name:a[1],type:"bar",marker:{color:a[2]}})),
+  Object.assign(lay("Probability by month (%)","%"),{barmode:"stack"}),{responsive:true});
+ Plotly.newPlot("c2",[{x:h.month.slice(-120),y:h.soi.slice(-120),type:"bar",marker:{color:h.soi.slice(-120).map(v=>v<0?"#d64545":"#3b6fd6")}}],
+  lay("Southern Oscillation Index (negative favours El Niño)","SOI"),{responsive:true});
+ document.getElementById("ind").innerHTML="<tr><th>Season</th><th>Niño 3.4 avg</th><th>Based on</th><th style='text-align:left'>ENSO tilt</th></tr>"+
+  d.india.map(k=>`<tr><td>${k.name}<br><span class="note">${k.region}, ${k.window}</span></td><td>${k.mean===null?"-":k.mean+" \u00b0C"}</td><td>${k.basis}</td><td style="text-align:left">${k.tilt}</td></tr>`).join("");
+ document.getElementById("skill").innerHTML="<tr><th>Lead (months)</th><th>Model error</th><th>Persistence error</th><th>Correlation</th><th>Improvement</th></tr>"+
+  d.skill.map(k=>`<tr><td>${k.lead}</td><td>${k.rmse_model}</td><td>${k.rmse_persistence}</td><td>${k.corr}</td><td>${k.improvement_pct}%</td></tr>`).join("");
+}).catch(e=>{document.getElementById("meta").textContent="Could not load data: "+e});
+</script></main></body></html>
